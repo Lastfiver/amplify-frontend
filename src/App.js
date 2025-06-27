@@ -76,6 +76,27 @@ const AmplifyManager = () => {
             impressions: 2840000
           }));
         
+        case 'getReporting':
+          const reportingMarketerId = params[0];
+          const fromDate = params[1];
+          const toDate = params[2];
+          const reportingCampaignId = params[3];
+          
+          const reportingResponse = await fetch(`${API_BASE_URL}/api/mcp-bridge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              function: 'amplify-mcp-server:get-amplify-campaigns-reporting',
+              params: { 
+                marketerId: reportingMarketerId, 
+                from: fromDate, 
+                to: toDate,
+                ...(reportingCampaignId && { campaignId: reportingCampaignId })
+              }
+            })
+          });
+          return await reportingResponse.json();
+        
         default:
           return getFallbackData(endpoint, ...params);
       }
@@ -100,6 +121,22 @@ const AmplifyManager = () => {
       case 'getCampaigns':
         return [
           {
+            id: "009be0ce07f9b8c6079cc0a6db14a990f9",
+            name: "Carents Room Volume Mobile Traffic Campaign January 2025",
+            status: "PAUSED",
+            budget: 1000,
+            currency: "GBP",
+            enabled: false,
+            cpc: 0.0131,
+            startDate: "2025-01-02",
+            endDate: "2025-03-31",
+            platform: ["MOBILE", "TABLET"],
+            amountSpent: 0,
+            onAir: false,
+            clicks: 0,
+            impressions: 0
+          },
+          {
             id: "00e2e008dd9c2fffa3ef21ff551dacbc08",
             name: "Carents Room Traffic Campaign - June 2025",
             status: "ENABLED",
@@ -116,6 +153,18 @@ const AmplifyManager = () => {
             impressions: 2840000
           }
         ];
+      
+      case 'getReporting':
+        return {
+          totalSpend: 1295.32,
+          impressions: 2840000,
+          clicks: 115640,
+          conversions: 1847,
+          ctr: 4.07,
+          cpc: 0.0112,
+          cpa: 0.70,
+          conversionRate: 1.60
+        };
       
       default:
         return {};
@@ -150,6 +199,25 @@ const AmplifyManager = () => {
     }
   };
 
+  const loadReporting = async (marketerId) => {
+    setReportingLoading(true);
+    try {
+      const response = await makeApiCall('getReporting', marketerId, dateRange.from, dateRange.to, selectedCampaign?.id);
+      setReporting(response);
+    } catch (err) {
+      console.error('Failed to load reporting:', err);
+      setError('Failed to load reporting data: ' + err.message);
+    } finally {
+      setReportingLoading(false);
+    }
+  };
+
+  const generateReport = () => {
+    if (selectedMarketer) {
+      loadReporting(selectedMarketer.id);
+    }
+  };
+
   const formatCurrency = (amount, currency = 'GBP') => {
     return new Intl.NumberFormat('en-GB', {
       style: 'currency',
@@ -159,6 +227,79 @@ const AmplifyManager = () => {
 
   const formatNumber = (num) => {
     return new Intl.NumberFormat('en-US').format(num || 0);
+  };
+
+  const ReportingView = () => {
+    if (!reporting || Object.keys(reporting).length === 0) {
+      return (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="text-center text-gray-500">
+            <BarChart3 size={48} className="mx-auto mb-4 text-gray-300" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Report Generated</h3>
+            <p className="text-gray-600">Select your filters above and click "Generate Report" to view performance data.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Performance Overview
+            {selectedCampaign && (
+              <span className="text-sm font-normal text-gray-600 ml-2">
+                - {selectedCampaign.name}
+              </span>
+            )}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="text-sm text-blue-600">Total Spend</div>
+              <div className="text-2xl font-bold text-blue-900">{formatCurrency(reporting.totalSpend, 'GBP')}</div>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="text-sm text-green-600">Impressions</div>
+              <div className="text-2xl font-bold text-green-900">{formatNumber(reporting.impressions)}</div>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="text-sm text-purple-600">Clicks</div>
+              <div className="text-2xl font-bold text-purple-900">{formatNumber(reporting.clicks)}</div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <div className="text-sm text-orange-600">Conversions</div>
+              <div className="text-2xl font-bold text-orange-900">{formatNumber(reporting.conversions)}</div>
+            </div>
+            <div className="bg-indigo-50 p-4 rounded-lg">
+              <div className="text-sm text-indigo-600">CTR</div>
+              <div className="text-2xl font-bold text-indigo-900">
+                {reporting.ctr ? reporting.ctr.toFixed(2) + '%' : '0.00%'}
+              </div>
+            </div>
+            <div className="bg-pink-50 p-4 rounded-lg">
+              <div className="text-sm text-pink-600">Conversion Rate</div>
+              <div className="text-2xl font-bold text-pink-900">
+                {reporting.conversionRate ? reporting.conversionRate.toFixed(2) + '%' : '0.00%'}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="text-sm text-gray-600">Cost Per Click (CPC)</div>
+              <div className="text-xl font-bold text-gray-900">{formatCurrency(reporting.cpc, 'GBP')}</div>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="text-sm text-gray-600">Cost Per Acquisition (CPA)</div>
+              <div className="text-xl font-bold text-gray-900">{formatCurrency(reporting.cpa, 'GBP')}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading && marketers.length === 0) {
@@ -213,6 +354,34 @@ const AmplifyManager = () => {
         </div>
       </div>
 
+      {/* Navigation */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'dashboard'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab('reporting')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'reporting'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Reporting
+            </button>
+          </nav>
+        </div>
+      </div>
+
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
@@ -227,141 +396,239 @@ const AmplifyManager = () => {
           </div>
         )}
 
-        {/* Connection Status */}
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-green-800 font-medium">✅ Connected to Railway Backend</span>
-          </div>
-          <p className="text-green-600 text-sm mt-1">
-            API: {API_BASE_URL}
-          </p>
-        </div>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Campaigns</p>
-                <p className="text-2xl font-bold text-gray-900">{campaigns.length}</p>
+        {activeTab === 'dashboard' && (
+          <div>
+            {/* Connection Status */}
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-green-800 font-medium">✅ Connected to Railway Backend</span>
               </div>
-              <BarChart3 className="text-blue-600" size={24} />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active Campaigns</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {campaigns.filter(c => c.status === 'ENABLED').length}
-                </p>
-              </div>
-              <Play className="text-green-600" size={24} />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Budget</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(campaigns.reduce((sum, c) => sum + (c.budget || 0), 0), 'GBP')}
-                </p>
-              </div>
-              <TrendingUp className="text-blue-600" size={24} />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Month to Date Spent</p>
-                <p className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(campaigns.reduce((sum, c) => sum + (c.amountSpent || 0), 0), 'GBP')}
-                </p>
-              </div>
-              <Calendar className="text-orange-600" size={24} />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Status</p>
-                <p className="text-2xl font-bold text-green-600">Live</p>
-              </div>
-              <Users className="text-blue-600" size={24} />
-            </div>
-          </div>
-        </div>
-
-        {/* Campaigns Grid */}
-        <div className="space-y-6">
-          <h2 className="text-lg font-semibold text-gray-900">Your Campaigns</h2>
-          {campaigns.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-md p-12 text-center">
-              <BarChart3 size={48} className="mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Loading campaigns...</h3>
-              <p className="text-gray-600">
-                Connected to your Amplify account
+              <p className="text-green-600 text-sm mt-1">
+                API: {API_BASE_URL}
               </p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {campaigns.map((campaign) => (
-                <div key={campaign.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{campaign.name}</h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-600">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          campaign.onAir ? 'bg-green-100 text-green-800' : 
-                          campaign.status === 'ENABLED' ? 'bg-yellow-100 text-yellow-800' : 
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {campaign.onAir ? 'LIVE' : campaign.status}
-                        </span>
-                        {campaign.platform && (
-                          <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                            {campaign.platform.join(' + ')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="bg-gray-50 p-3 rounded">
-                      <div className="text-sm text-gray-600">Budget</div>
-                      <div className="font-semibold text-gray-900">
-                        {formatCurrency(campaign.budget, campaign.currency)}
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 p-3 rounded">
-                      <div className="text-sm text-gray-600">Amount Spent</div>
-                      <div className="font-semibold text-gray-900">
-                        {formatCurrency(campaign.amountSpent || 0, campaign.currency)}
-                      </div>
-                    </div>
+            {/* Summary Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Campaigns</p>
+                    <p className="text-2xl font-bold text-gray-900">{campaigns.length}</p>
                   </div>
+                  <BarChart3 className="text-blue-600" size={24} />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Active Campaigns</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {campaigns.filter(c => c.status === 'ENABLED').length}
+                    </p>
+                  </div>
+                  <Play className="text-green-600" size={24} />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Budget</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {formatCurrency(campaigns.reduce((sum, c) => sum + (c.budget || 0), 0), 'GBP')}
+                    </p>
+                  </div>
+                  <TrendingUp className="text-blue-600" size={24} />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Month to Date Spent</p>
+                    <p className="text-2xl font-bold text-orange-600">
+                      {formatCurrency(campaigns.reduce((sum, c) => sum + (c.amountSpent || 0), 0), 'GBP')}
+                    </p>
+                  </div>
+                  <Calendar className="text-orange-600" size={24} />
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Status</p>
+                    <p className="text-2xl font-bold text-green-600">Live</p>
+                  </div>
+                  <Users className="text-blue-600" size={24} />
+                </div>
+              </div>
+            </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div className="bg-gray-50 p-3 rounded">
-                      <div className="text-sm text-gray-600">Clicks</div>
-                      <div className="font-semibold text-gray-900">
-                        {formatNumber(campaign.clicks || 0)}
+            {/* Campaigns Grid */}
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold text-gray-900">Your Campaigns</h2>
+              {campaigns.length === 0 ? (
+                <div className="bg-white rounded-lg shadow-md p-12 text-center">
+                  <BarChart3 size={48} className="mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Loading campaigns...</h3>
+                  <p className="text-gray-600">
+                    Connected to your Amplify account
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {campaigns.map((campaign) => (
+                    <div key={campaign.id} className="bg-white rounded-lg shadow-md border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">{campaign.name}</h3>
+                          <div className="flex items-center gap-4 text-sm text-gray-600">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              campaign.onAir ? 'bg-green-100 text-green-800' : 
+                              campaign.status === 'ENABLED' ? 'bg-yellow-100 text-yellow-800' : 
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {campaign.onAir ? 'LIVE' : campaign.status}
+                            </span>
+                            {campaign.platform && (
+                              <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                                {campaign.platform.join(' + ')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="text-sm text-gray-600">Budget</div>
+                          <div className="font-semibold text-gray-900">
+                            {formatCurrency(campaign.budget, campaign.currency)}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="text-sm text-gray-600">Amount Spent</div>
+                          <div className="font-semibold text-gray-900">
+                            {formatCurrency(campaign.amountSpent || 0, campaign.currency)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="text-sm text-gray-600">Clicks</div>
+                          <div className="font-semibold text-gray-900">
+                            {formatNumber(campaign.clicks || 0)}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="text-sm text-gray-600">Impressions</div>
+                          <div className="font-semibold text-gray-900">
+                            {formatNumber(campaign.impressions || 0)}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-gray-50 p-3 rounded">
-                      <div className="text-sm text-gray-600">Impressions</div>
-                      <div className="font-semibold text-gray-900">
-                        {formatNumber(campaign.impressions || 0)}
-                      </div>
-                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'reporting' && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Performance Reporting</h2>
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">Campaign:</label>
+                    <select
+                      value={selectedCampaign?.id || 'all'}
+                      onChange={(e) => {
+                        if (e.target.value === 'all') {
+                          setSelectedCampaign(null);
+                        } else {
+                          setSelectedCampaign(campaigns.find(c => c.id === e.target.value));
+                        }
+                      }}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm min-w-48"
+                    >
+                      <option value="all" className="text-gray-900">All Campaigns</option>
+                      {campaigns.map(campaign => {
+                        const isFinished = new Date(campaign.endDate) < new Date();
+                        const isPaused = campaign.status === 'PAUSED' || !campaign.enabled;
+                        const optionClass = isFinished ? 'text-red-600' : isPaused ? 'text-amber-600' : 'text-gray-900';
+                        
+                        return (
+                          <option key={campaign.id} value={campaign.id} className={optionClass}>
+                            {campaign.name.length > 30 ? campaign.name.substring(0, 30) + '...' : campaign.name}
+                            {isPaused && ' (Paused)'}
+                            {isFinished && ' (Finished)'}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">From:</label>
+                    <input
+                      type="date"
+                      value={dateRange.from}
+                      onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">To:</label>
+                    <input
+                      type="date"
+                      value={dateRange.to}
+                      onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm"
+                    />
                   </div>
                 </div>
-              ))}
+                <div className="flex justify-center">
+                  <button
+                    onClick={generateReport}
+                    disabled={reportingLoading || !selectedMarketer}
+                    className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 ${
+                      reportingLoading || !selectedMarketer
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                    }`}
+                  >
+                    {reportingLoading ? (
+                      <>
+                        <RefreshCw className="animate-spin" size={20} />
+                        Generating Report...
+                      </>
+                    ) : (
+                      <>
+                        <BarChart3 size={20} />
+                        Generate Report
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+            
+            {reportingLoading ? (
+              <div className="bg-white rounded-lg shadow-md p-12">
+                <div className="text-center">
+                  <RefreshCw className="animate-spin mx-auto mb-4 text-blue-600" size={48} />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Generating Report</h3>
+                  <p className="text-gray-600">Please wait while we gather your campaign data...</p>
+                </div>
+              </div>
+            ) : (
+              <ReportingView />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Footer */}
